@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Shapefile</title>
+</head>
+<style>
+body,
+html {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+</style>
+
+<body>
+    <p>
+        <label>Please select a shp File</label>
+        <input type="file" id="file" onchange="readAsArrayBuffer()" />
+    </p>
+    <canvas id="canvas" width="800" height="800">
+    </canvas>
+    <script type="text/javascript">
+    var file = document.getElementById("file");
+    var canvas = document.getElementById("canvas");
+    var context = canvas.getContext("2d");
+    context.strokeStyle = "#ff0000";
+    context.fillStyle = "#ff0000";
+    var width = 800;
+    var height = 800;
+
+    function readAsArrayBuffer(e) {
+        context.clearRect(0, 0, width, height);
+        var shp = file.files[0];
+        var reader = new FileReader();
+        reader.readAsArrayBuffer(shp);
+        reader.onload = function(f) {
+            var dataView = new DataView(this.result);
+            var pos = 0;
+            var header = parseHeader(dataView, pos);
+            pos = header.pos;
+            while (pos < header.byteLength) {
+                try {
+                    var shape = parseShape(dataView, pos);
+                    pos = shape.pos;
+                    darwShape(header, shape);
+                } catch (e) {
+                    console.log(e);
+                }
+            }
+        }
+    }
+
+    function darwShape(header, shape) {
+        var xWidth = header.maxX - header.minX;
+        var yHeight = header.maxY - header.minY;
+        var i = 0;
+        switch (shape.type) {
+            case 1: // Point
+            case 11: // PointZ
+            case 21: // PointM
+                var point = shape.coordinates;
+                context.fillRect(width / 2, height / 2, 10, 10);
+                break;
+            case 8: // MultiPoint
+            case 18: // MultiPointZ          
+            case 28: // MultiPointM
+                var points = shape.coordinates;
+                for (; i < points.length; i++) {
+                    var x = (points[i][0] - header.minX) / xWidth * width;
+                    var y = (yHeight - (points[i][1] - header.minY)) / yHeight * height;
+                    context.fillRect(x - 5, y - 5, 10, 10);
+                }
+                break;
+            case 3: // Polyline
+            case 13: // PolylineZ
+            case 23: // PolylineM
+                var paths = shape.coordinates;
+                for (; i < paths.length; i++) {
+                    context.beginPath();
+                    for (var j = 0; j < paths[i].length; j++) {
+                        var x = (paths[i][j][0] - header.minX) / xWidth * width;
+                        var y = (yHeight - (paths[i][j][1] - header.minY)) / yHeight * height;
+                        if (j == 0) {
+                            context.moveTo(x, y);
+                        } else {
+                            context.lineTo(x, y);
+                        }
+                    }
+                    context.stroke();
+                }
+                break;
+            case 5: // Polygon
+            case 15: // PolygonZ
+            case 25: // PolygonM
+                var rings = shape.coordinates;
+                for (; i < rings.length; i++) {
+                    context.beginPath();
+                    for (var j = 0; j < rings[i].length; j++) {
+                        var x = (rings[i][j][0] - header.minX) / xWidth * width;
+                        var y = (yHeight - (rings[i][j][1] - header.minY)) / yHeight * height;
+                        if (j == 0) {
+                            context.moveTo(x, y);
+                        } else {
+                            context.lineTo(x, y);
+                        }
+                    }
+                    context.stroke();
+                }
+                break;
+        }
+    }
+    
+    /**
+     * read the shp header info .
+     *
+     * @param dataView The DataView containing the main shapefile.
+     * @param pos The start position of DataView.
+     */
+    function parseHeader(dataView, pos) {
+        var header = {};
+        header.fileCode = dataView.getInt32(pos, false);
+        if (header.fileCode != 0x0000270a) {
+            throw (new Error("Unknown file code: " + header.fileCode));
+        }
+        pos += 4;
+        pos += 5 * 4; //unused
+        var wordLength = dataView.getInt32(pos, false);
+        header.byteLength = wordLength * 2;
+        pos += 4;
+        header.version = dataView.getInt32(pos, true);
+        pos += 4;
+        header.shapeType = dataView.getInt32(pos, true);
+        pos += 4;
+        header.minX = dataView.getFloat64(pos, true);
+        header.minY = dataView.getFloat64(pos + 8, true);
+        header.maxX = dataView.getFloat64(pos + 16, true);
+        header.maxY = dataView.getFloat64(pos + 24, true);
+        header.minZ = dataView.getFloat64(pos + 32, true);
+        header.maxZ = dataView.getFloat64(pos + 40, true);
+        header.minM = dataView.getFloat64(pos + 48, true);
+        header.maxM = dataView.getFloat64(pos + 56, true);
+        pos += 8 * 8;
+        header.pos = pos;
+        return header;
+    }
+
+    /**
+     * read the shp content.
+     *
+     * @param dataView The DataView containing the main shapefile.
+     * @param pos The start position of DataView.
+     */
+    function parseShape(dataView, pos) {
+        var shape = {};
+        shape.number = dataView.getInt32(pos, false);
+        pos += 4;
+        shape.length = dataView.getInt32(pos, false);
+        pos += 4;
+        shape.type = dataView.getInt32(pos, true);
+        pos += 4;
+
+        var i = 0;
+        var coordinates = [];
+        switch (shape.type) {
+            case 0: // Null
+                break;
+            case 1: // Point (x,y)
+            case 11: // PointZ (X, Y, Z, M)
+            case 21: // PointM (X, Y, M)
+                var point = [dataView.getFloat64(pos, true), dataView.getFloat64(pos + 8, true)];
+                pos += 16;
+                coordinates = point;
+                if (shape.type == 11) {
+                    pos += 8; //read z value float64
+                    pos += 8; //read m value float64
+                }
+                if (shape.type == 21) {
+                    pos += 8; //read m value float64
+                }
+                shape.coordinates = coordinates;
+                break;
+            case 8: // MultiPoint (MBR, pointCount, points)
+            case 18: // MultiPointZ                 
+            case 28: // MultiPointM
+                var minX = dataView.getFloat64(pos, true);
+                var minY = dataView.getFloat64(pos + 8, true);
+                var maxX = dataView.getFloat64(pos + 16, true);
+                var maxY = dataView.getFloat64(pos + 24, true);
+                var pointCount = dataView.getInt32(pos + 32, true); //x y
+                pos += 36; //8*4+4
+                for (i = 0; i < pointCount; i++) {
+                    var point = [dataView.getFloat64(pos, true), dataView.getFloat64(pos + 8, true)];
+                    pos += 16;
+                    coordinates.push(point);
+                }
+                if (shape.type == 18) {
+                    pos += 8; //zmin
+                    pos += 8; //zmax
+                    pos += pointCount * 8; //read z values float64
+
+                    pos += 8; //mmin
+                    pos += 8; //mmax
+                    pos += pointCount * 8; //read m values float64
+                }
+                if (shape.type == 28) {
+                    pos += 8; //mmin
+                    pos += 8; //mmax
+                    pos += pointCount * 8; //read m values float64
+                }
+                shape.extent = {
+                    minX: minX,
+                    minY: minY,
+                    maxX: maxX,
+                    maxY: maxY
+                };
+                shape.coordinates = coordinates;
+                break;
+            case 3: // Polyline
+            case 13: // PolylineZ
+            case 23: // PolylineM
+            case 5: // Polygon
+            case 15: // PolygonZ
+            case 25: // PolygonM
+                var minX = dataView.getFloat64(pos, true);
+                var minY = dataView.getFloat64(pos + 8, true);
+                var maxX = dataView.getFloat64(pos + 16, true);
+                var maxY = dataView.getFloat64(pos + 24, true);
+                var parts = new Int32Array(dataView.getInt32(pos + 32, true));
+                var pointCount = dataView.getInt32(pos + 36, true); //x y
+                pos += 40; //8*4+4+4
+
+                for (i = 0; i < parts.length; i++) {
+                    parts[i] = dataView.getInt32(pos, true);
+                    pos += 4;
+                    coordinates.push([]);
+                }
+                var p = 1;
+                for (i = 0; i < pointCount; i++) {
+                    var point = [dataView.getFloat64(pos, true), dataView.getFloat64(pos + 8, true)];
+                    pos += 16;
+                    if (p >= parts.length) {
+                        coordinates[p - 1].push(point);
+                    } else {
+                        if (i < parts[p]) {
+                            coordinates[p - 1].push(point);
+                        } else {
+                            p++
+                        }
+                    }
+                }
+                if (shape.type == 15 || shape.type == 13) {
+                    pos += 8; //zmin
+                    pos += 8; //zmax
+                    pos += pointCount * 8; //read z values float64
+
+                    pos += 8; //mmin
+                    pos += 8; //mmax
+                    pos += pointCount * 8; //read m values float64
+                }
+                if (shape.type == 25 || shape.type == 23) {
+                    pos += 8; //mmin
+                    pos += 8; //mmax
+                    pos += pointCount * 8; //read m values float64
+                }
+                shape.extent = {
+                    minX: minX,
+                    minY: minY,
+                    maxX: maxX,
+                    maxY: maxY
+                };
+                shape.coordinates = coordinates;
+                break;
+            case 31: // MultiPatch
+                throw new Error("Shape type not supported: " + shape.type);
+            default:
+                throw new Error("Unknown shape type at " + (pos - 4) + ': ' + shape.type);
+        }
+        shape.pos = pos;
+        return shape;
+    }
+    </script>
+</body>
+
+</html>
