@@ -1,7 +1,9 @@
 shapefile_js
 =========
 
-This project allows user to read shapefile with Javascript. 
+This project allows user to read shapefile with Javascript, 
+It has supported almost all types of shapefiles although 
+which was composed of 200 lines code.
 
 A live example can be found at
 http://polluxll.github.com/shapefile_js/index.html

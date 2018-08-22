@@ -18,7 +18,8 @@ html {
 
 <body>
     <p>
-        <label>Please select a <font size="5" color="red">shp</font> File</label>
+        <label>Please select a
+            <font size="5" color="red">shp</font> File</label>
         <input type="file" id="file" onchange="readAsArrayBuffer()" />
     </p>
     <canvas id="canvas" width="800" height="800">
@@ -114,7 +115,7 @@ html {
                 break;
         }
     }
-    
+
     /**
      * read the shp header info .
      *
@@ -129,10 +130,10 @@ html {
         }
         pos += 4;
         pos += 5 * 4; //unused
-        var wordLength = dataView.getInt32(pos, false);
+        var wordLength = dataView.getInt32(pos, false); //bigEndian  the total length of the file in 16-bit words
         header.byteLength = wordLength * 2;
         pos += 4;
-        header.version = dataView.getInt32(pos, true);
+        header.version = dataView.getInt32(pos, true); //littleEndian
         pos += 4;
         header.shapeType = dataView.getInt32(pos, true);
         pos += 4;
@@ -157,11 +158,11 @@ html {
      */
     function parseShape(dataView, pos) {
         var shape = {};
-        shape.number = dataView.getInt32(pos, false);
+        shape.number = dataView.getInt32(pos, false); //bigEndian
         pos += 4;
-        shape.length = dataView.getInt32(pos, false);
+        shape.length = dataView.getInt32(pos, false) * 2; //bigEndian
         pos += 4;
-        shape.type = dataView.getInt32(pos, true);
+        shape.type = dataView.getInt32(pos, true); //littleEndian
         pos += 4;
 
         var i = 0;
