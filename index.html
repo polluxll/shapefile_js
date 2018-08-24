@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <title>Shapefile</title>
@@ -12,7 +11,6 @@ html {
     height: 100%;
     margin: 0;
     padding: 0;
-    overflow: hidden;
 }
 </style>
 
@@ -30,8 +28,8 @@ html {
     var context = canvas.getContext("2d");
     context.strokeStyle = "#ff0000";
     context.fillStyle = "#ff0000";
-    var width = 800;
-    var height = 800;
+    var width = canvas.width;
+    var height = canvas.height;
 
     function readAsArrayBuffer(e) {
         context.clearRect(0, 0, width, height);
@@ -49,8 +47,8 @@ html {
                     pos = shape.pos;
                     darwShape(header, shape);
                 } catch (e) {
-                    break;
                     console.log(e);
+                    break;
                 }
             }
         }
@@ -60,20 +58,27 @@ html {
         var xWidth = header.maxX - header.minX;
         var yHeight = header.maxY - header.minY;
         var i = 0;
+        var x,y;
         switch (shape.type) {
             case 1: // Point
             case 11: // PointZ
             case 21: // PointM
                 var point = shape.coordinates;
-                context.fillRect(width / 2, height / 2, 10, 10);
+                if(header.maxX==header.minX||header.maxY==header.minY){
+                    context.fillRect(width / 2, height / 2, 10, 10);
+                }else{
+                    x = (point[0] - header.minX) / xWidth * width;
+                    y = (yHeight - (point[1] - header.minY)) / yHeight * height;
+                    context.fillRect(x - 5, y - 5, 10, 10);
+                }
                 break;
             case 8: // MultiPoint
             case 18: // MultiPointZ          
             case 28: // MultiPointM
                 var points = shape.coordinates;
                 for (; i < points.length; i++) {
-                    var x = (points[i][0] - header.minX) / xWidth * width;
-                    var y = (yHeight - (points[i][1] - header.minY)) / yHeight * height;
+                    x = (points[i][0] - header.minX) / xWidth * width;
+                    y = (yHeight - (points[i][1] - header.minY)) / yHeight * height;
                     context.fillRect(x - 5, y - 5, 10, 10);
                 }
                 break;
@@ -84,8 +89,8 @@ html {
                 for (; i < paths.length; i++) {
                     context.beginPath();
                     for (var j = 0; j < paths[i].length; j++) {
-                        var x = (paths[i][j][0] - header.minX) / xWidth * width;
-                        var y = (yHeight - (paths[i][j][1] - header.minY)) / yHeight * height;
+                        x = (paths[i][j][0] - header.minX) / xWidth * width;
+                        y = (yHeight - (paths[i][j][1] - header.minY)) / yHeight * height;
                         if (j == 0) {
                             context.moveTo(x, y);
                         } else {
@@ -102,8 +107,8 @@ html {
                 for (; i < rings.length; i++) {
                     context.beginPath();
                     for (var j = 0; j < rings[i].length; j++) {
-                        var x = (rings[i][j][0] - header.minX) / xWidth * width;
-                        var y = (yHeight - (rings[i][j][1] - header.minY)) / yHeight * height;
+                        x = (rings[i][j][0] - header.minX) / xWidth * width;
+                        y = (yHeight - (rings[i][j][1] - header.minY)) / yHeight * height;
                         if (j == 0) {
                             context.moveTo(x, y);
                         } else {
