@@ -6,7 +6,7 @@ It has supported almost all types of shapefiles although
 which was composed of 200 lines code.
 
 A live example can be found at
-http://polluxll.github.com/shapefile_js/index.html
+https://polluxll.github.com/shapefile_js/index.html
 
 ### Support shape type
 
