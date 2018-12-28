@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Shapefile</title>
 </head>
 <style>
-body,
+    body,
 html {
     width: 100%;
     height: 100%;
@@ -16,8 +17,7 @@ html {
 
 <body>
     <p>
-        <label>Please select a
-            <font size="5" color="red">shp</font> file</label>
+        <label> Please select a <font size="5" color="red">shp</font> file</label>
         <input type="file" id="file" onchange="readAsArrayBuffer()" />
     </p>
     <canvas id="canvas" width="800" height="800">
@@ -26,8 +26,7 @@ html {
     var file = document.getElementById("file");
     var canvas = document.getElementById("canvas");
     var context = canvas.getContext("2d");
-    context.strokeStyle = "#ff0000";
-    context.fillStyle = "#ff0000";
+    context.strokeStyle = "rgba(0,0,0,1)";
     var width = canvas.width;
     var height = canvas.height;
 
@@ -58,15 +57,16 @@ html {
         var xWidth = header.maxX - header.minX;
         var yHeight = header.maxY - header.minY;
         var i = 0;
-        var x,y;
+        var x, y;
+        context.fillStyle = "rgba(255,0,0,0.6)";
         switch (shape.type) {
             case 1: // Point
             case 11: // PointZ
             case 21: // PointM
                 var point = shape.coordinates;
-                if(header.maxX==header.minX||header.maxY==header.minY){
+                if (header.maxX == header.minX || header.maxY == header.minY) {
                     context.fillRect(width / 2, height / 2, 10, 10);
-                }else{
+                } else {
                     x = (point[0] - header.minX) / xWidth * width;
                     y = (yHeight - (point[1] - header.minY)) / yHeight * height;
                     context.fillRect(x - 5, y - 5, 10, 10);
@@ -103,22 +103,118 @@ html {
             case 5: // Polygon
             case 15: // PolygonZ
             case 25: // PolygonM
-                var rings = shape.coordinates;
+                var rings = shape.coordinates.slice(0);
+                // Judging that the previous polygon has been drawed
                 for (; i < rings.length; i++) {
-                    context.beginPath();
-                    for (var j = 0; j < rings[i].length; j++) {
-                        x = (rings[i][j][0] - header.minX) / xWidth * width;
-                        y = (yHeight - (rings[i][j][1] - header.minY)) / yHeight * height;
-                        if (j == 0) {
-                            context.moveTo(x, y);
-                        } else {
-                            context.lineTo(x, y);
+                    var clockwise = isClockwise(rings[i]);
+                    if (!clockwise) {
+                        var gCenter=calcGravityCenter(rings[i]);
+                        x = (gCenter[0] - header.minX) / xWidth * width;
+                        y = (yHeight - (gCenter[1] - header.minY)) / yHeight * height;
+                        var pickData = context.getImageData(x, y, 1, 1).data;
+                        if(pickData[0]!=0||pickData[1]!=0||pickData[2]!=0||pickData[3]!=0){
+                            rings.splice(i,1);
+                            i--;
                         }
                     }
-                    context.stroke();
                 }
+
+                i = 0;
+                for (; i < rings.length; i++) {
+                    var clockwise = isClockwise(rings[i]);
+                    if (clockwise) {
+                        context.beginPath();
+                        for (var j = 0; j < rings[i].length; j++) {
+                            x = (rings[i][j][0] - header.minX) / xWidth * width;
+                            y = (yHeight - (rings[i][j][1] - header.minY)) / yHeight * height;
+                            if (j == 0) {
+                                context.moveTo(x, y);
+                            } else {
+                                context.lineTo(x, y);
+                            }
+                        }
+                        context.closePath();
+                        context.stroke();
+                        context.fill();
+                    }
+                }
+                context.globalCompositeOperation = 'destination-out';
+                context.fillStyle = "rgba(255,255,255,1)";
+                i = 0;
+                for (; i < rings.length; i++) {
+                    var clockwise = isClockwise(rings[i]);
+                    if (!clockwise) {
+                        context.beginPath();
+                        for (var j = 0; j < rings[i].length; j++) {
+                            x = (rings[i][j][0] - header.minX) / xWidth * width;
+                            y = (yHeight - (rings[i][j][1] - header.minY)) / yHeight * height;
+                            if (j == 0) {
+                                context.moveTo(x, y);
+                            } else {
+                                context.lineTo(x, y);
+                            }
+                        }
+                        context.closePath();
+                        context.stroke();
+                        context.fill();
+                    }
+                }
+                context.globalCompositeOperation = 'source-over';
                 break;
         }
+    }
+
+    function isClockwise(ring) {
+        if (ring.length < 3) {
+            return -1;
+        }
+        var i = 0,
+            j = 0;
+        var area = 0;
+        for (; i < ring.length; i++) {
+            j = (i + 1) % ring.length;
+            area += ring[i][0] * ring[j][1];
+            area -= ring[j][0] * ring[i][1];
+        }
+        return (area < 0);
+    }
+
+    function calcGravityCenter(ring) {
+        var xmin=Number.MAX_VALUE;
+        var ymin=Number.MAX_VALUE;
+        var i=0;
+        for(;i<ring.length;i++){
+            if(ring[i][0]<xmin){
+                xmin=ring[i][0];
+            }
+            if(ring[i][1]<ymin){
+                ymin=ring[i][1];
+            }
+        }
+        var momentX = 0;
+        var momentY = 0;
+        var weight = 0;
+        i=0;
+        for(;i<ring.length;i++){
+            var p1 = ring[i];
+            var p2;
+            if (i == ring.length - 1) {
+                p2 = ring[0];
+            } else {
+                p2 = ring[i+1];
+            }
+            var dWeight = (p1[0] - xmin) * (p2[1] - p1[1]) -
+                (p1[0] - xmin) * (ymin - p1[1]) / 2 -
+                (p2[0] - xmin) * (p2[1] - ymin) / 2 -
+                (p1[0] - p2[0]) * (p2[1] - p1[1]) / 2;
+            weight += dWeight;
+            var pTmp = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+            var gravityX = xmin + (pTmp[0] - xmin) * 2 / 3;
+            var gravityY = ymin + (pTmp[1] - ymin) * 2 / 3;
+            momentX += gravityX * dWeight;
+            momentY += gravityY * dWeight;
+        }
+        return [momentX / weight, momentY / weight];
     }
 
     /**
